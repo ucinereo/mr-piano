@@ -1,6 +1,5 @@
 using Assets.Scripts;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -12,118 +11,213 @@ public class PlaneDefiner : MonoBehaviour
     [SerializeField] private float vertexPrefabWidth = 0.01f;
     [SerializeField] private int requiredPoints = 4;
     [SerializeField] private GameObject pointVisualizerPrefab;
+
+    [Header("Visuals")]
+    [SerializeField] private Color userPlaneColor = Color.green;
+    [SerializeField] private Color mathPlaneColor = new Color(0.0f, 0.5f, 1.0f, 0.5f); // Blue with transparency
+    [SerializeField] private float mathPlaneSize = 0.5f;
     #endregion
 
-    #region
+    #region Events
     public static event Action<DefinedPlane> OnPlaneDefined;
     #endregion
 
     #region Private members
+    // Component references
     private LineRenderer lineRenderer;
+    private Transform playerCameraTransform;
+
+    // Materials - cached for performance
+    private Material userPlaneMaterial;
+    private Material mathPlaneMaterial;
+
+    // State variables
     private Vector3[] vertices;
     private int currentVertexIndex = -1;
     private readonly Vector3 OVR_CONTROLLER_RADIUS = new(0.0f, 0.0f, 0.03f);
     private List<GameObject> setupGameObjects;
+    private GameObject mathPlaneVisualizer;
     #endregion
+
     void Awake()
     {
-        setupGameObjects = new List<GameObject>();
+        // --- Cache component references ---
         lineRenderer = GetComponent<LineRenderer>();
+        playerCameraTransform = Camera.main.transform; // Get the main camera for player viewpoint
+
+        // --- Initialize collections and arrays ---
+        setupGameObjects = new List<GameObject>();
         vertices = new Vector3[requiredPoints];
-        lineRenderer.positionCount = requiredPoints;
+
+        // --- Configure LineRenderer ---
+        lineRenderer.positionCount = 0;
         lineRenderer.enabled = false;
+        lineRenderer.useWorldSpace = true;
+        lineRenderer.startWidth = 0.005f;
+        lineRenderer.endWidth = 0.005f;
+        lineRenderer.loop = true;
+
+        // --- Create and cache materials to avoid runtime generation ---
+        userPlaneMaterial = new Material(Shader.Find("Sprites/Default"));
+        userPlaneMaterial.color = userPlaneColor;
+        lineRenderer.material = userPlaneMaterial;
+
+        mathPlaneMaterial = new Material(Shader.Find("Standard"));
+        mathPlaneMaterial.color = mathPlaneColor;
+        // Set material for transparency
+        SetupTransparentMaterial(mathPlaneMaterial);
     }
 
-    // Update is called once per frame
     void Update()
     {
+        // Use the primary button on the right controller to place points
         if (OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
         {
             Vector3 currentPos = OVRInput.GetLocalControllerPosition(OVRInput.Controller.RTouch) + OVR_CONTROLLER_RADIUS;
             CapturePoint(currentPos);
         }
+
+        // Use the secondary button on the left controller to reset
         if (OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.LTouch))
         {
-            ResetDefinition();
+            //ResetDefinition();
         }
     }
 
+    /// <summary>
+    /// Captures a point in 3D space and visualizes it.
+    /// </summary>
     private void CapturePoint(Vector3 worldPosition)
     {
-        Debug.Log($"Detecting vertex at controller position. Spawning vertex.");
-        if (currentVertexIndex < vertices.Length - 1)
+        if (currentVertexIndex >= requiredPoints - 1) return;
+
+        vertices[++currentVertexIndex] = worldPosition;
+        VisualizePoint(worldPosition);
+
+        // Dynamically draw the user's line as they place points
+        lineRenderer.positionCount = currentVertexIndex + 1;
+        lineRenderer.SetPosition(currentVertexIndex, worldPosition);
+        lineRenderer.enabled = true;
+
+        if (currentVertexIndex == requiredPoints - 1)
         {
-            vertices[++currentVertexIndex] = worldPosition;
-
-            if (pointVisualizerPrefab != null)
-            {
-                GameObject tempVertexPrefab = Instantiate(pointVisualizerPrefab, vertices[currentVertexIndex], Quaternion.identity);
-                tempVertexPrefab.transform.localScale = new Vector3(vertexPrefabWidth, vertexPrefabWidth, vertexPrefabWidth);
-                Debug.Log($"Add volume vertex at coords: {vertices[currentVertexIndex]}");
-                setupGameObjects.Add(tempVertexPrefab);
-            }
-
-            if (currentVertexIndex == requiredPoints - 1)
-            {
-                DefinePlane();
-            }
+            DefinePlane();
         }
     }
 
+    /// <summary>
+    /// Creates a visual marker for a captured point.
+    /// </summary>
+    private void VisualizePoint(Vector3 position)
+    {
+        if (pointVisualizerPrefab != null)
+        {
+            GameObject tempVertexPrefab = Instantiate(pointVisualizerPrefab, position, Quaternion.identity);
+            tempVertexPrefab.transform.localScale = Vector3.one * vertexPrefabWidth;
+            setupGameObjects.Add(tempVertexPrefab);
+        }
+    }
+
+    /// <summary>
+    /// Finalizes the plane definition after four points are captured.
+    /// </summary>
     private void DefinePlane()
     {
-        // A plane is mathematically defined by 3 points.
-        // We use the first three to get the plane's orientation.
-        Plane mathPlane = new Plane(vertices[0], vertices[1], vertices[2]);
+        // --- Calculate the mathematical plane from the first three points ---
+        Plane initialPlane = new Plane(vertices[0], vertices[1], vertices[2]);
 
-        // Create our custom data structure
-        DefinedPlane newPlane = new DefinedPlane(mathPlane, vertices[0], vertices[1], vertices[2], vertices[3]);
+        // --- Ensure the plane's normal is oriented towards the player ---
+        Vector3 planeCenter = (vertices[0] + vertices[1] + vertices[2] + vertices[3]) / 4f;
+        Vector3 directionToPlayer = playerCameraTransform.position - planeCenter;
 
-        // Create an anchor at the center of the plane to persist it in the real world.
-        //StartCoroutine(UtilityMethods.CreateSpatialAnchorWithCallback(HandleAnchorCreated));
+        // The dot product checks if the normal is pointing away from the player.
+        // A negative result means the angle is > 90 degrees, so we need to flip the normal.
+        if (Vector3.Dot(initialPlane.normal, directionToPlayer) < 0)
+        {
+            // Re-calculate the plane with a reversed vertex order (winding) to flip the normal.
+            initialPlane = new Plane(vertices[0], vertices[2], vertices[1]);
+        }
 
-        // Update the LineRenderer to show the defined quad
-        lineRenderer.enabled = true;
-        lineRenderer.SetPositions(vertices);
-        lineRenderer.loop = true;
+        // Create our custom data structure with the correctly oriented plane.
+        DefinedPlane finalPlane = new DefinedPlane(initialPlane, vertices[0], vertices[1], vertices[2], vertices[3]);
 
-        // Fire the event, notifying all listeners that the plane is ready.
-        // Check if anyone is listening before invoking to avoid errors.
-        OnPlaneDefined?.Invoke(newPlane);
+        // Draw the visual representations of the planes.
+        DrawPlaneVisuals(finalPlane);
 
-        Debug.Log("Plane defined and event fired!");
+        // Notify listeners that a new plane has been defined.
+        OnPlaneDefined?.Invoke(finalPlane);
+
+        Debug.Log("Plane defined with normal oriented towards the player.");
     }
 
-    //private OVRSpatialAnchor savedAnchor;
+    /// <summary>
+    /// Draws the user-defined quad and a representation of the mathematical plane.
+    /// </summary>
+    private void DrawPlaneVisuals(DefinedPlane definedPlane)
+    {
+        // 1. Finalize the user-defined quad visual
+        lineRenderer.SetPositions(vertices);
 
-    ///// <summary>
-    ///// This is our callback method. It will be called by the coroutine when the anchor is ready.
-    ///// Its signature must match the Action<OVRSpatialAnchor>.
-    ///// </summary>
-    ///// <param name="createdAnchor">The anchor that was created (or null if it failed).</param>
-    //private void HandleAnchorCreated(OVRSpatialAnchor createdAnchor)
-    //{
-    //    if (createdAnchor == null)
-    //    {
-    //        Debug.LogError("Anchor creation failed. Cannot place content.");
-    //        return;
-    //    }
+        // 2. Draw the mathematical plane visualizer
+        if (mathPlaneVisualizer != null) Destroy(mathPlaneVisualizer);
 
-    //    // --- SAVING AND USING THE RESULT ---
-    //    Debug.Log($"Callback received! Anchor {createdAnchor.Uuid} is ready to use.");
+        mathPlaneVisualizer = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        mathPlaneVisualizer.name = "MathPlaneVisualizer";
+        mathPlaneVisualizer.transform.position = definedPlane.Center;
+        // Orient the quad so its "up" (normal) matches the plane's normal.
+        mathPlaneVisualizer.transform.rotation = Quaternion.LookRotation(definedPlane.Plane.normal);
+        mathPlaneVisualizer.transform.localScale = Vector3.one * mathPlaneSize;
 
-    //    // 1. Save the anchor to a class variable for later use.
-    //    savedAnchor = createdAnchor;
-    //}
+        // Apply the cached transparent material
+        Renderer mathPlaneRenderer = mathPlaneVisualizer.GetComponent<Renderer>();
+        if (mathPlaneRenderer != null)
+        {
+            mathPlaneRenderer.material = mathPlaneMaterial;
+        }
 
+        setupGameObjects.Add(mathPlaneVisualizer); // Add for cleanup
+    }
+
+    /// <summary>
+    /// Resets the plane definition process, clearing all visuals and state.
+    /// </summary>
     public void ResetDefinition()
     {
-        currentVertexIndex = 0;
+        currentVertexIndex = -1;
+
+        // Disable and clear the line renderer
         lineRenderer.enabled = false;
-        Debug.Log($"Destroying {setupGameObjects.Count} setup objects");
+        lineRenderer.positionCount = 0;
+
+        // Destroy all instantiated setup objects (point markers, plane visualizer)
         foreach (GameObject setupObject in setupGameObjects)
         {
-            Destroy(setupObject);
+            // Check if object hasn't already been destroyed (e.g., scene change)
+            if (setupObject != null)
+            {
+                Destroy(setupObject);
+            }
         }
+        setupGameObjects.Clear();
+
+        // Explicitly nullify the reference after destruction
+        mathPlaneVisualizer = null;
+
+        Debug.Log("Plane definition reset.");
+    }
+
+    /// <summary>
+    /// Helper method to configure a material for standard transparency.
+    /// </summary>
+    private void SetupTransparentMaterial(Material material)
+    {
+        material.SetFloat("_Mode", 3); // Set rendering mode to Transparent
+        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        material.SetInt("_ZWrite", 0);
+        material.DisableKeyword("_ALPHATEST_ON");
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
     }
 }

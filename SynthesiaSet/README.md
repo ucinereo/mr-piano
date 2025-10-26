@@ -10,7 +10,7 @@ pip install -e .            # install project with dependencies
 
 # How to use
 ```bash
-python src/synthesiaset/piano_mesh.py   # demo of 3D created mesh
-python src/synthesiaset/main.py         # creates the dataset
-python src/synthesiaset/view_gt.py      # shows the projected points
+# Show help message using synthesia {gen,vis} -h
+synthesia gen --n-samples 1
+synthesia vis --idx 0
 ```

@@ -16,6 +16,8 @@ public class NoteCubeManager : MonoBehaviour
     public float fallTime = 2f; // seconds for cube to travel from top to final destination
     public float blockDepth = 0.5f;
 
+    public float gameSpeed = 1f;
+
     private List<NoteEvent> notes = new List<NoteEvent>();
     private float songStartTime;
     public AudioSource audioSource;
@@ -51,6 +53,7 @@ public class NoteCubeManager : MonoBehaviour
     IEnumerator PlayAudioWithDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
+        audioSource.pitch = gameSpeed;
         audioSource.Play();
         songStartTime = Time.time;
     }
@@ -61,11 +64,12 @@ public class NoteCubeManager : MonoBehaviour
         // Spawn notes
         foreach (var note in notes.ToArray())
         {
-            // Calculate when we need to spawn: spawn early so it reaches plane in 'fallTime' seconds
-            if (elapsed >= note.time - fallTime)
+            // Spawn early so it reaches plane in fallTime seconds
+            if (elapsed >= note.time / gameSpeed - fallTime)
             {
+                note.duration /= gameSpeed;
                 SpawnCube(note);
-                notes.Remove(note); // remove from list so we don’t spawn again
+                notes.Remove(note);
             }
         }
     }
@@ -81,13 +85,13 @@ public class NoteCubeManager : MonoBehaviour
 
 
         GameObject cube = Instantiate(noteCubePrefab);
-        cube.transform.position = plane.transform.TransformPoint(plane.GetLocalKeyPosition(keyIndex) + Vector3.up * (blockHeight / 2f));
+        cube.transform.position = plane.transform.TransformPoint(plane.GetLocalKeyPosition(keyIndex) + Vector3.up * (blockHeight / 2f / plane.height));
         cube.transform.rotation = plane.transform.rotation;
 
         float keyWidth = plane.GetLocalKeyWidth(keyIndex);
 
         // world-scale: X=keyWidth, Y=blockHeight, Z=blockDepth
-        cube.transform.localScale = new Vector3(keyWidth, blockHeight, blockDepth);
+        cube.transform.localScale = new Vector3(keyWidth * plane.width, blockHeight, blockDepth);
 
 
 
@@ -101,7 +105,7 @@ public class NoteCubeManager : MonoBehaviour
         fall.startTime = note.time;
         fall.plane = plane;
         fall.keyIndex = keyIndex;
-        fall.blockHeight = blockHeight;
+        fall.origBlockHeight = blockHeight;
         fall.blockDepth = blockDepth;
         fall.duration = note.duration;
     }

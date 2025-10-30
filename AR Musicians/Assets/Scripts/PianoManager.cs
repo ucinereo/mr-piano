@@ -11,9 +11,11 @@ public class PianoManager : MonoBehaviour
     #region Serialized members
     [Header("Settings")]
     [SerializeField] private float vertexPrefabWidth = 0.01f;
-    [SerializeField] private int requiredPoints = 4;
     [SerializeField] private GameObject pointVisualizerPrefab;
-    [SerializeField] private GameObject planeCorrectorPrefab;
+
+    // TODO: Move to PlaneController class for better abstraction
+    [SerializeField] private GameObject planeCornerCorrectorNode;
+    [SerializeField] private GameObject planeTranslateCorrectorNode;
 
     [Header("Visuals")]
     [SerializeField] private Color userPlaneColor = Color.green;
@@ -35,12 +37,17 @@ public class PianoManager : MonoBehaviour
     private Material mathPlaneMaterial;
 
     // State variables
-    private Vector3[] vertices;
+    private static int REQUIRED_POINTS = 3;
     private int currentVertexIndex = -1;
-    private readonly Vector3 OVR_CONTROLLER_RADIUS = new(0.0f, 0.0f, 0.03f);
+    private bool planeDefined = false;
+    private float sideLength = 0.0f;
 
-    private GameObject[] setupGameObjects;
-    private GameObject[] planeCorrectionHandlers;
+    private Vector3[] initPlaneAnchors; // The initial set plane anchors
+    private Vector3[] planeAnchors; // The corrected plane anchors
+    private GameObject[] anchorPrefabs; // Prefabs stored in plane corners
+    private GameObject leftCornerCorrecorNode;
+    private GameObject rightCornerCorrectorNode;
+    private GameObject translateCorrectorNode;
     private GameObject mathPlaneVisualizer;
     #endregion
 
@@ -51,9 +58,9 @@ public class PianoManager : MonoBehaviour
         playerCameraTransform = Camera.main.transform; // Get the main camera for player viewpoint
 
         // --- Initialize collections and arrays ---
-        setupGameObjects = new GameObject[requiredPoints];
-        vertices = new Vector3[requiredPoints];
-        planeCorrectionHandlers = new GameObject[requiredPoints];
+        initPlaneAnchors = new Vector3[REQUIRED_POINTS];
+        anchorPrefabs = new GameObject[REQUIRED_POINTS + 1];
+        planeAnchors = new Vector3[REQUIRED_POINTS + 1]; // This is the only one that stores 4 positions
 
         // --- Configure LineRenderer ---
         lineRenderer.positionCount = 0;
@@ -76,7 +83,7 @@ public class PianoManager : MonoBehaviour
 
     private void Update()
     {
-        if (currentVertexIndex == requiredPoints - 1)
+        if (planeDefined)
         {
             if (OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
             {
@@ -85,48 +92,78 @@ public class PianoManager : MonoBehaviour
 
             if (OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch))
             {
-                NormalizePoints();
+                // TODO
             }
         }
-    }
-
-    private void NormalizePoints()
-    {
-        Vector3 pos1 = planeCorrectionHandlers[0].transform.position;
-        Vector3 pos2 = planeCorrectionHandlers[1].transform.position;
-        Vector3 pos3 = planeCorrectionHandlers[2].transform.position;
-        Vector3 pos4 = planeCorrectionHandlers[3].transform.position;
-
-        Vector3 edgeDirection = (pos2 - pos1).normalized;
-        float rightLengt = (pos3 - pos2).magnitude;
-        Vector3 front = Vector3.Cross(edgeDirection, Vector3.up).normalized;
-        pos3 = pos2 - rightLengt * front;
-        pos4 = pos1 - rightLengt * front;
-
-        planeCorrectionHandlers[2].transform.position = pos3;
-        planeCorrectionHandlers[3].transform.position = pos4;
     }
 
     /// Captures a point in 3D space and visualizes it.
     public void RegisterPoint(Vector3 worldPosition)
     {
-        if (currentVertexIndex >= requiredPoints - 1) return;
+        if (currentVertexIndex >= REQUIRED_POINTS - 1) return;
 
-        vertices[++currentVertexIndex] = worldPosition;
+        initPlaneAnchors[++currentVertexIndex] = worldPosition;
         VisualizePoint(worldPosition, currentVertexIndex);
-        AddPlaneCorrector(worldPosition, currentVertexIndex);
 
         // Dynamically draw the user's line as they place points
         lineRenderer.positionCount = currentVertexIndex + 1;
         lineRenderer.SetPosition(currentVertexIndex, worldPosition);
         lineRenderer.enabled = true;
+        Debug.Log("Set new points");
+
+        // If fully defined, normalize and set correctors
+        if (currentVertexIndex >= REQUIRED_POINTS - 1)
+        {
+            finishSetup();
+        }
+    }
+
+    private void finishSetup()
+    {
+        // plane heuristic: all points lie on same y-value.
+        // Corner 3 and 4 are perpendicular to corner 2 and 1 respectively.
+        float yValue = (initPlaneAnchors[0] + initPlaneAnchors[1]).y / 2;
+
+        planeAnchors[0] = initPlaneAnchors[0];
+        planeAnchors[0].y = yValue;
+        planeAnchors[1] = initPlaneAnchors[1];
+        planeAnchors[1].y = yValue;
+
+        lineRenderer.positionCount = REQUIRED_POINTS + 1;
+
+        sideLength = (initPlaneAnchors[2] - initPlaneAnchors[1]).magnitude;
+        SetBottomCorners();
+        VisualizePoint(planeAnchors[3], 3);
+
+        AddPlaneCorrectors();
+        UpdateVisuals();
+        planeDefined = true;
+    }
+
+    private void SetBottomCorners()
+    {
+        Vector3 baseLine = planeAnchors[1] - planeAnchors[0];
+        Vector3 edgeVector = sideLength * Vector3.Cross(baseLine, Vector3.up).normalized;
+        planeAnchors[2] = planeAnchors[1] - edgeVector;
+        planeAnchors[3] = planeAnchors[0] - edgeVector;
+    }
+
+    private void UpdateVisuals()
+    {
+        // Assumes that planeAnchors contains the correct Positions
+        for (int i = 0; i <= REQUIRED_POINTS; i++)
+        {
+            lineRenderer.SetPosition(i, planeAnchors[i]);
+            anchorPrefabs[i].transform.position = planeAnchors[i];
+        }
+        Debug.Log("Updated all positions.");
     }
 
     public void MovePoint(int index, Vector3 delta)
     {
-        Vector3 oldLinePosition = lineRenderer.GetPosition(index);
-        lineRenderer.SetPosition(index, oldLinePosition + delta);
-        setupGameObjects[index].transform.position += delta;
+        planeAnchors[index] += delta;
+        SetBottomCorners();
+        UpdateVisuals();
     }
 
     /// <summary>
@@ -138,21 +175,29 @@ public class PianoManager : MonoBehaviour
         {
             GameObject tempVertexPrefab = Instantiate(pointVisualizerPrefab, position, Quaternion.identity);
             tempVertexPrefab.transform.localScale = Vector3.one * vertexPrefabWidth;
-            setupGameObjects[index] = tempVertexPrefab;
+            anchorPrefabs[index] = tempVertexPrefab;
         }
     }
 
-    private void AddPlaneCorrector(Vector3 position, int index)
+    private void AddPlaneCorrectors()
     {
-        position += (0.1f * Vector3.up);
-        bool left = index == 0 || index == 3;
-        position += 0.1f * (left ? Vector3.left : Vector3.right);
+        // Assumes that planeAnchors contains the correct Positions
 
-        GameObject planeCorrector = Instantiate(planeCorrectorPrefab, position, Quaternion.identity);
-        PlaneCorrectionNode correctionNode = planeCorrector.GetComponent<PlaneCorrectionNode>();
-        correctionNode.manager = this;
-        correctionNode.vertexIndex = index;
-        planeCorrectionHandlers[index] = planeCorrector;
+        // Left Anchor
+        Vector3 leftPos = planeAnchors[0] + 0.1f * (Vector3.up + Vector3.left);
+        GameObject leftCorrectorObj = Instantiate(planeCornerCorrectorNode, leftPos, Quaternion.identity);
+        PlaneCorrectionNode leftNode = leftCorrectorObj.GetComponent<PlaneCorrectionNode>();
+        leftNode.manager = this;
+        leftNode.vertexIndex = 0;
+        leftCornerCorrecorNode = leftCorrectorObj;
+
+        // Right Anchor
+        Vector3 rightPos = planeAnchors[1] + 0.1f * (Vector3.up + Vector3.right);
+        GameObject rightCorrectorObj = Instantiate(planeCornerCorrectorNode, rightPos, Quaternion.identity);
+        PlaneCorrectionNode rightNode = rightCorrectorObj.GetComponent<PlaneCorrectionNode>();
+        rightNode.manager = this;
+        rightNode.vertexIndex = 1;
+        rightCornerCorrectorNode = rightCorrectorObj;
     }
     
 
@@ -162,10 +207,10 @@ public class PianoManager : MonoBehaviour
     private void DefinePlane()
     {
         // --- Calculate the mathematical plane from the first three points ---
-        Plane initialPlane = new Plane(vertices[0], vertices[1], vertices[2]);
+        Plane initialPlane = new Plane(planeAnchors[0], planeAnchors[1], planeAnchors[2]);
 
         // --- Ensure the plane's normal is oriented towards the player ---
-        Vector3 planeCenter = (vertices[0] + vertices[1] + vertices[2] + vertices[3]) / 4f;
+        Vector3 planeCenter = (planeAnchors[0] + planeAnchors[1] + planeAnchors[2] + planeAnchors[3]) / 4f;
         Vector3 directionToPlayer = playerCameraTransform.position - planeCenter;
 
         // The dot product checks if the normal is pointing away from the player.
@@ -173,11 +218,11 @@ public class PianoManager : MonoBehaviour
         if (Vector3.Dot(initialPlane.normal, directionToPlayer) < 0)
         {
             // Re-calculate the plane with a reversed vertex order (winding) to flip the normal.
-            initialPlane = new Plane(vertices[0], vertices[2], vertices[1]);
+            initialPlane = new Plane(planeAnchors[0], planeAnchors[2], planeAnchors[1]);
         }
 
         // Create our custom data structure with the correctly oriented plane.
-        DefinedPlane finalPlane = new DefinedPlane(initialPlane, vertices[0], vertices[1], vertices[2], vertices[3]);
+        DefinedPlane finalPlane = new DefinedPlane(initialPlane, planeAnchors[0], planeAnchors[1], planeAnchors[2], planeAnchors[3]);
 
         // Draw the visual representations of the planes.
         DrawPlaneVisuals(finalPlane);
@@ -194,7 +239,7 @@ public class PianoManager : MonoBehaviour
     private void DrawPlaneVisuals(DefinedPlane definedPlane)
     {
         // 1. Finalize the user-defined quad visual
-        lineRenderer.SetPositions(vertices);
+        lineRenderer.SetPositions(planeAnchors);
 
         // 2. Draw the mathematical plane visualizer
         if (mathPlaneVisualizer != null) Destroy(mathPlaneVisualizer);
@@ -228,7 +273,7 @@ public class PianoManager : MonoBehaviour
         lineRenderer.positionCount = 0;
 
         // Destroy all instantiated setup objects (point markers, plane visualizer)
-        foreach (GameObject setupObject in setupGameObjects)
+        foreach (GameObject setupObject in anchorPrefabs)
         {
             // Check if object hasn't already been destroyed (e.g., scene change)
             if (setupObject != null)

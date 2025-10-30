@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using UnityEngine;
 
-public abstract class PlaneFinder : MonoBehaviour
+public abstract class AbstractPlaneFinder : MonoBehaviour
 {
     #region serialized members
     [Header("Manager")]

@@ -2,7 +2,7 @@ using Meta.XR;
 using UnityEngine;
 using UnityEngine.Serialization;
 
-public class RayCastPlaneFinder : PlaneFinder
+public class RayCastPlaneFinder : AbstractPlaneFinder
 {
     [Header("Ray Casting")]
     public Transform rightControllerAnchor;

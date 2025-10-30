@@ -82,9 +82,9 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_Sprite: {fileID: 7482667652216324306, guid: 311925a002f4447b3a28927169b83ea6, type: 3}
-  m_Color: {r: 0.1527234, g: 0.37455186, b: 0.8301887, a: 1}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.14901961}
   m_FlipX: 0
-  m_FlipY: 0
+  m_FlipY: 1
   m_DrawMode: 0
   m_Size: {x: 1, y: 1}
   m_AdaptiveModeThreshold: 0.5
@@ -106,7 +106,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlaneController
   width: 2
   height: 1
-  totalKeys: 31
+  totalKeys: 32
   leftmostKey: F2
   whiteToBlackRatio: 1.66
 --- !u!1 &7852603049403543285

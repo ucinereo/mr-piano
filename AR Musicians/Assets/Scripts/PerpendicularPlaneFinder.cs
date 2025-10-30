@@ -25,13 +25,13 @@ public class PerpendicularPlaneFinder : MonoBehaviour
     // Subscribe to the event when the script is enabled
     private void OnEnable()
     {
-        PlaneDefiner.OnPlaneDefined += HandlePlaneDefined;
+        PianoManager.OnPlaneDefined += HandlePlaneDefined;
     }
 
     // ALWAYS unsubscribe when the script is disabled or destroyed to prevent memory leaks
     private void OnDisable()
     {
-        PlaneDefiner.OnPlaneDefined -= HandlePlaneDefined;
+        PianoManager.OnPlaneDefined -= HandlePlaneDefined;
     }
 
     // This is the event handler method. It will only be called when the event is fired.
@@ -73,23 +73,32 @@ public class PerpendicularPlaneFinder : MonoBehaviour
         perpCorners[3] = center + rectRightDir * rectWidth / 2f - rectUpDir * rectHeight / 2f;
 
         // --- 3. Draw the Perpendicular Rectangle ---
-        perpendicularLineRenderer.enabled = true;
-        perpendicularLineRenderer.positionCount = 4;
-        perpendicularLineRenderer.SetPositions(perpCorners);
-        perpendicularLineRenderer.loop = true;
+        //perpendicularLineRenderer.enabled = true;
+        //perpendicularLineRenderer.positionCount = 4;
+        //perpendicularLineRenderer.SetPositions(perpCorners);
+        //perpendicularLineRenderer.loop = true;
 
         // --- 4. Place the Object ---
         if (objectToPlaceOnPlane != null)
         {
+            float planeLength = (definedPlane.Corner1 - definedPlane.Corner2).magnitude;
+            float planeHeight = planeLength / 2;
+
             // The object should be placed at the center of the new plane.
-            Vector3 position = center;
+            Vector3 edgeCenterPoint = (definedPlane.Corner2 + definedPlane.Corner1) / 2;
+            Vector3 position = edgeCenterPoint + definedPlane.Plane.normal * planeHeight / 2;
+            // Vector3 position = edgeCenterPoint;
 
             // The object's "forward" direction should face along the new plane's normal.
             // Its "up" direction should align with the "up" direction of the rectangle we calculated.
             Quaternion rotation = Quaternion.LookRotation(perpNormal, rectUpDir);
 
             // Instantiate the object with the calculated position and rotation.
-            Instantiate(objectToPlaceOnPlane, position, rotation);
+            PlaneController pianoHUD = objectToPlaceOnPlane.GetComponent<PlaneController>();
+            pianoHUD.width = planeLength;
+            pianoHUD.height = planeHeight;
+            GameObject plane = Instantiate(pianoHUD.gameObject, position, rotation);
+            
         }
     }
 }

@@ -78,12 +78,13 @@ public class PlaneController : MonoBehaviour
     public bool IsWhiteKey(int keyIndex)
     {
         bool[] pattern = { true, false, true, false, true, true, false, true, false, true, false, true };
-        return pattern[keyIndex % 12];
+        return pattern[(keyIndex - leftmostKeyIndex) % 12];
     }
+
 
     public float GetLocalKeyWidth(int keyIndex)
     {
-        return keyWidths[keyIndex - leftmostKeyIndex] / width;
+        return keyWidths[keyIndex - leftmostKeyIndex];
     }
 
     // Return the local position of the key
@@ -105,7 +106,8 @@ public class PlaneController : MonoBehaviour
 
         // Piano key index = noteNumber + 12 * octave number
         int keyIndex = noteNumber + 12 * octave;
-        keyIndex = Math.Clamp(keyIndex, leftmostKeyIndex, totalKeys - 1);
+        if (leftmostKeyIndex != -1)
+            keyIndex = Math.Clamp(keyIndex, leftmostKeyIndex, leftmostKeyIndex + totalKeys - 1);
         return keyIndex;
     }
 }

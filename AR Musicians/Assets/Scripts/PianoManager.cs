@@ -1,16 +1,19 @@
 using Assets.Scripts;
+using Meta.XR;
+using Meta.XR.MRUtilityKit;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(LineRenderer))]
-public class PlaneDefiner : MonoBehaviour
+public class PianoManager : MonoBehaviour
 {
     #region Serialized members
     [Header("Settings")]
     [SerializeField] private float vertexPrefabWidth = 0.01f;
     [SerializeField] private int requiredPoints = 4;
     [SerializeField] private GameObject pointVisualizerPrefab;
+    [SerializeField] private GameObject planeCorrectorPrefab;
 
     [Header("Visuals")]
     [SerializeField] private Color userPlaneColor = Color.green;
@@ -35,7 +38,9 @@ public class PlaneDefiner : MonoBehaviour
     private Vector3[] vertices;
     private int currentVertexIndex = -1;
     private readonly Vector3 OVR_CONTROLLER_RADIUS = new(0.0f, 0.0f, 0.03f);
-    private List<GameObject> setupGameObjects;
+
+    private GameObject[] setupGameObjects;
+    private GameObject[] planeCorrectionHandlers;
     private GameObject mathPlaneVisualizer;
     #endregion
 
@@ -46,8 +51,9 @@ public class PlaneDefiner : MonoBehaviour
         playerCameraTransform = Camera.main.transform; // Get the main camera for player viewpoint
 
         // --- Initialize collections and arrays ---
-        setupGameObjects = new List<GameObject>();
+        setupGameObjects = new GameObject[requiredPoints];
         vertices = new Vector3[requiredPoints];
+        planeCorrectionHandlers = new GameObject[requiredPoints];
 
         // --- Configure LineRenderer ---
         lineRenderer.positionCount = 0;
@@ -68,55 +74,87 @@ public class PlaneDefiner : MonoBehaviour
         SetupTransparentMaterial(mathPlaneMaterial);
     }
 
-    void Update()
+    private void Update()
     {
-        // Use the primary button on the right controller to place points
-        if (OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
+        if (currentVertexIndex == requiredPoints - 1)
         {
-            Vector3 currentPos = OVRInput.GetLocalControllerPosition(OVRInput.Controller.RTouch) + OVR_CONTROLLER_RADIUS;
-            CapturePoint(currentPos);
-        }
+            if (OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
+            {
+                DefinePlane();    
+            }
 
-        // Use the secondary button on the left controller to reset
-        if (OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.LTouch))
-        {
-            //ResetDefinition();
+            if (OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch))
+            {
+                NormalizePoints();
+            }
         }
     }
 
-    /// <summary>
+    private void NormalizePoints()
+    {
+        Vector3 pos1 = planeCorrectionHandlers[0].transform.position;
+        Vector3 pos2 = planeCorrectionHandlers[1].transform.position;
+        Vector3 pos3 = planeCorrectionHandlers[2].transform.position;
+        Vector3 pos4 = planeCorrectionHandlers[3].transform.position;
+
+        Vector3 edgeDirection = (pos2 - pos1).normalized;
+        float rightLengt = (pos3 - pos2).magnitude;
+        Vector3 front = Vector3.Cross(edgeDirection, Vector3.up).normalized;
+        pos3 = pos2 - rightLengt * front;
+        pos4 = pos1 - rightLengt * front;
+
+        planeCorrectionHandlers[2].transform.position = pos3;
+        planeCorrectionHandlers[3].transform.position = pos4;
+    }
+
     /// Captures a point in 3D space and visualizes it.
-    /// </summary>
-    private void CapturePoint(Vector3 worldPosition)
+    public void RegisterPoint(Vector3 worldPosition)
     {
         if (currentVertexIndex >= requiredPoints - 1) return;
 
         vertices[++currentVertexIndex] = worldPosition;
-        VisualizePoint(worldPosition);
+        VisualizePoint(worldPosition, currentVertexIndex);
+        AddPlaneCorrector(worldPosition, currentVertexIndex);
 
         // Dynamically draw the user's line as they place points
         lineRenderer.positionCount = currentVertexIndex + 1;
         lineRenderer.SetPosition(currentVertexIndex, worldPosition);
         lineRenderer.enabled = true;
+    }
 
-        if (currentVertexIndex == requiredPoints - 1)
-        {
-            DefinePlane();
-        }
+    public void MovePoint(int index, Vector3 delta)
+    {
+        Vector3 oldLinePosition = lineRenderer.GetPosition(index);
+        lineRenderer.SetPosition(index, oldLinePosition + delta);
+        setupGameObjects[index].transform.position += delta;
     }
 
     /// <summary>
     /// Creates a visual marker for a captured point.
     /// </summary>
-    private void VisualizePoint(Vector3 position)
+    private void VisualizePoint(Vector3 position, int index)
     {
         if (pointVisualizerPrefab != null)
         {
             GameObject tempVertexPrefab = Instantiate(pointVisualizerPrefab, position, Quaternion.identity);
             tempVertexPrefab.transform.localScale = Vector3.one * vertexPrefabWidth;
-            setupGameObjects.Add(tempVertexPrefab);
+            setupGameObjects[index] = tempVertexPrefab;
         }
     }
+
+    private void AddPlaneCorrector(Vector3 position, int index)
+    {
+        position += (0.1f * Vector3.up);
+        bool left = index == 0 || index == 3;
+        position += 0.1f * (left ? Vector3.left : Vector3.right);
+
+        GameObject planeCorrector = Instantiate(planeCorrectorPrefab, position, Quaternion.identity);
+        PlaneCorrectionNode correctionNode = planeCorrector.GetComponent<PlaneCorrectionNode>();
+        correctionNode.manager = this;
+        correctionNode.vertexIndex = index;
+        planeCorrectionHandlers[index] = planeCorrector;
+    }
+    
 
     /// <summary>
     /// Finalizes the plane definition after four points are captured.
@@ -175,7 +213,7 @@ public class PlaneDefiner : MonoBehaviour
             mathPlaneRenderer.material = mathPlaneMaterial;
         }
 
-        setupGameObjects.Add(mathPlaneVisualizer); // Add for cleanup
+        // setupGameObjects.Add(mathPlaneVisualizer); // Add for cleanup
     }
 
     /// <summary>
@@ -198,7 +236,7 @@ public class PlaneDefiner : MonoBehaviour
                 Destroy(setupObject);
             }
         }
-        setupGameObjects.Clear();
+        // setupGameObjects.Clear();
 
         // Explicitly nullify the reference after destruction
         mathPlaneVisualizer = null;

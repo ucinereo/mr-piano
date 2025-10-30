@@ -78,9 +78,8 @@ public class PlaneController : MonoBehaviour
     public bool IsWhiteKey(int keyIndex)
     {
         bool[] pattern = { true, false, true, false, true, true, false, true, false, true, false, true };
-        return pattern[(keyIndex - leftmostKeyIndex) % 12];
+        return pattern[keyIndex % 12];
     }
-
 
     public float GetLocalKeyWidth(int keyIndex)
     {
@@ -95,6 +94,11 @@ public class PlaneController : MonoBehaviour
         keyIndex = Mathf.Clamp(keyIndex, leftmostKeyIndex, totalKeys + leftmostKeyIndex - 1); //TODO: What happens if we have a piano that doesn't have a certain key?
         Vector3 localPos = localKeyCenters[keyIndex - leftmostKeyIndex];
         return localPos;
+    }
+    public bool IsWhiteKey(int keyIndex)
+    {
+        bool[] pattern = { true, false, true, false, true, true, false, true, false, true, false, true };
+        return pattern[(keyIndex - leftmostKeyIndex) % 12];
     }
 
     public int NoteNameToKeyIndex(string note)

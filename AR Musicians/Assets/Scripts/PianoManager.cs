@@ -47,7 +47,6 @@ public class PianoManager : MonoBehaviour
     private GameObject[] anchorPrefabs; // Prefabs stored in plane corners
     private GameObject leftCornerCorrecorNode;
     private GameObject rightCornerCorrectorNode;
-    private GameObject translateCorrectorNode;
     private GameObject mathPlaneVisualizer;
     #endregion
 
@@ -83,17 +82,9 @@ public class PianoManager : MonoBehaviour
 
     private void Update()
     {
-        if (planeDefined)
+        if (planeDefined && OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
         {
-            if (OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
-            {
-                DefinePlane();    
-            }
-
-            if (OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch))
-            {
-                // TODO
-            }
+            DefinePlane();    
         }
     }
 
@@ -112,13 +103,11 @@ public class PianoManager : MonoBehaviour
         Debug.Log("Set new points");
 
         // If fully defined, normalize and set correctors
-        if (currentVertexIndex >= REQUIRED_POINTS - 1)
-        {
-            finishSetup();
-        }
+        if (currentVertexIndex >= REQUIRED_POINTS - 1) FinishSetup();
     }
 
-    private void finishSetup()
+    /// After 3 poitns have been design, put them on same y-coordinate and infer the 4th point
+    private void FinishSetup()
     {
         // plane heuristic: all points lie on same y-value.
         // Corner 3 and 4 are perpendicular to corner 2 and 1 respectively.
@@ -129,17 +118,21 @@ public class PianoManager : MonoBehaviour
         planeAnchors[1] = initPlaneAnchors[1];
         planeAnchors[1].y = yValue;
 
-        lineRenderer.positionCount = REQUIRED_POINTS + 1;
-
+        // Correct the position of the two bottom corners.
         sideLength = (initPlaneAnchors[2] - initPlaneAnchors[1]).magnitude;
         SetBottomCorners();
+
+        // Add the fourth point
+        lineRenderer.positionCount = REQUIRED_POINTS + 1;
         VisualizePoint(planeAnchors[3], 3);
 
+        // Add the corrector nodes to translate the first two points.
         AddPlaneCorrectors();
         UpdateVisuals();
         planeDefined = true;
     }
 
+    /// Infer the position from the lower two corners from the first two by making the perpendicular.
     private void SetBottomCorners()
     {
         Vector3 baseLine = planeAnchors[1] - planeAnchors[0];
@@ -148,6 +141,7 @@ public class PianoManager : MonoBehaviour
         planeAnchors[3] = planeAnchors[0] - edgeVector;
     }
 
+    /// Update the plane visualization
     private void UpdateVisuals()
     {
         // Assumes that planeAnchors contains the correct Positions
@@ -156,9 +150,9 @@ public class PianoManager : MonoBehaviour
             lineRenderer.SetPosition(i, planeAnchors[i]);
             anchorPrefabs[i].transform.position = planeAnchors[i];
         }
-        Debug.Log("Updated all positions.");
     }
 
+    /// Function which gets called by the corrector nodes to update the positions
     public void MovePoint(int index, Vector3 delta)
     {
         planeAnchors[index] += delta;
@@ -166,9 +160,7 @@ public class PianoManager : MonoBehaviour
         UpdateVisuals();
     }
 
-    /// <summary>
     /// Creates a visual marker for a captured point.
-    /// </summary>
     private void VisualizePoint(Vector3 position, int index)
     {
         if (pointVisualizerPrefab != null)
@@ -179,11 +171,13 @@ public class PianoManager : MonoBehaviour
         }
     }
 
+    /// Add the corrector nodes
     private void AddPlaneCorrectors()
     {
         // Assumes that planeAnchors contains the correct Positions
 
         // Left Anchor
+        // TODO: Put them in another class to make it more abstract.
         Vector3 leftPos = planeAnchors[0] + 0.1f * (Vector3.up + Vector3.left);
         GameObject leftCorrectorObj = Instantiate(planeCornerCorrectorNode, leftPos, Quaternion.identity);
         PlaneCorrectionNode leftNode = leftCorrectorObj.GetComponent<PlaneCorrectionNode>();
@@ -198,6 +192,8 @@ public class PianoManager : MonoBehaviour
         rightNode.manager = this;
         rightNode.vertexIndex = 1;
         rightCornerCorrectorNode = rightCorrectorObj;
+
+        // TODO: Add a translation anchor to move the whole plane in space, not only single nodes.
     }
     
 
@@ -257,8 +253,6 @@ public class PianoManager : MonoBehaviour
         {
             mathPlaneRenderer.material = mathPlaneMaterial;
         }
-
-        // setupGameObjects.Add(mathPlaneVisualizer); // Add for cleanup
     }
 
     /// <summary>

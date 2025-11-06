@@ -74,13 +74,6 @@ public class PlaneController : MonoBehaviour
         }
     }
 
-    // check if the key at keyIndex is a white key
-    public bool IsWhiteKey(int keyIndex)
-    {
-        bool[] pattern = { true, false, true, false, true, true, false, true, false, true, false, true };
-        return pattern[keyIndex % 12];
-    }
-
     public float GetLocalKeyWidth(int keyIndex)
     {
         return keyWidths[keyIndex - leftmostKeyIndex];

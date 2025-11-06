@@ -1,0 +1,39 @@
+using Unity.InferenceEngine;
+using UnityEditor;
+using UnityEngine;
+
+[CustomEditor(typeof(ModelManager))]
+public class ModelConverter : UnityEditor.Editor
+{
+    private const string FILEPATH = "Assets/MLModels/dino.sentis";
+    private ModelManager modelManager;
+
+
+    public void OnEnable()
+    {
+        modelManager = (ModelManager)target;
+    }
+
+    public override void OnInspectorGUI()
+    {
+        _ = DrawDefaultInspector();
+
+        if (GUILayout.Button("Generate Yolov9 Sentis model with Non-Max-Supression layer"))
+        {
+            OnEnable(); // Get the latest values from the serialized object
+            ConvertModel(); // convert the ONNX model to sentis
+        }
+    }
+
+    private void ConvertModel()
+    {
+        //Load model
+        var model = ModelLoader.Load(modelManager.OnnxModel);
+
+        //Here we transform the output of the model by feeding it through a Non-Max-Suppression layer.
+        ModelWriter.Save(FILEPATH, model);
+
+        // refresh assets
+        AssetDatabase.Refresh();
+    }
+}

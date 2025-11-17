@@ -7,6 +7,7 @@ public class CameraViewer : MonoBehaviour
     [SerializeField] private PassthroughCameraAccess cameraAccess;
     [SerializeField] private Renderer quadRenderer;
     [SerializeField] private ModelManager modelManager;
+    [SerializeField] private CVPlaneFinder cvPlaneFinder;
 
     private Texture2D picture;
 
@@ -58,11 +59,26 @@ public class CameraViewer : MonoBehaviour
         picture.SetPixels32(colors);
         picture.Apply();
 
-        //Vector2[] kpts = modelManager.RunInference(cameraAccess.GetTexture());
-        modelManager.RunInferenceAsync(cameraAccess.GetTexture());
+        Vector2[] kpts = modelManager.RunInference(cameraAccess.GetTexture());
+        Ray[] rays = new Ray[kpts.Length];
 
-        //drawQuad(picture, kpts);
-        //picture.Apply();
+        // Parse the keypoitns to rays
+        for (int i = 0; i < kpts.Length; i++)
+        {
+            Vector2 kpt = kpts[i];
+            var viewportPoint = new Vector2(
+                (float)kpt.x / cameraAccess.CurrentResolution.x,
+                (float)kpt.y / cameraAccess.CurrentResolution.y
+            );
+            var ray = cameraAccess.ViewportPointToRay(viewportPoint);
+            rays[i] = ray;
+        }
+        cvPlaneFinder.parseRays(rays);
+
+        //modelManager.RunInferenceAsync(cameraAccess.GetTexture());
+
+        drawQuad(picture, kpts);
+        picture.Apply();
         quadRenderer.material.mainTexture = picture;
     }
 
@@ -72,7 +88,7 @@ public class CameraViewer : MonoBehaviour
         foreach (Vector2 kpt in kpts)
         {
             int x = Mathf.FloorToInt(kpt.x);
-            int y = Mathf.FloorToInt(kpt.y);
+            int y = picture.height - Mathf.FloorToInt(kpt.y);
             for (int i = -width; i < width; i++)
             {
                 for (int j = -width; j < width; j++)

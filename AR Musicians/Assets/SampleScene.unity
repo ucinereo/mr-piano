@@ -2536,6 +2536,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 237959491}
+  - {fileID: 688360590}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &453814490
@@ -3871,6 +3872,52 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1800663536}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &688360589
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 688360590}
+  - component: {fileID: 688360591}
+  m_Layer: 0
+  m_Name: CVPlaneFinder
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &688360590
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 688360589}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0.44616002, y: -0.41524, z: 0.74997}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 452005785}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &688360591
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 688360589}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25c92dd059336914fa4a282b375d96a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CVPlaneFinder
+  manager: {fileID: 192860816}
+  raycastManager: {fileID: 1992638043}
 --- !u!1 &711022335
 GameObject:
   m_ObjectHideFlags: 0
@@ -8568,6 +8615,7 @@ MonoBehaviour:
   cameraAccess: {fileID: 1492806997}
   quadRenderer: {fileID: 608230415}
   modelManager: {fileID: 1737780173}
+  cvPlaneFinder: {fileID: 688360591}
 --- !u!4 &1407827003
 Transform:
   m_ObjectHideFlags: 0
@@ -9882,7 +9930,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5939d3c404209d640a1085965031aa79, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ModelManager
-  modelAsset: {fileID: 5022602860645237092, guid: 4e29b471e12c89a418be7795c0972a4a, type: 3}
+  modelAsset: {fileID: 5022602860645237092, guid: 11b53ed9bd28a7941b8ea66bfa617c5b, type: 3}
   speedText: {fileID: 1778973455}
   OnnxModel: {fileID: 5022602860645237092, guid: 0bddce24a28f07f4d924052f8230c539, type: 3}
 --- !u!4 &1737780174

@@ -59,105 +59,105 @@ public class ModelManager : MonoBehaviour
         isModelLoaded = true;
     }
 
-    //public Vector2[] RunInference(Texture targetTexture)
-    //{
-    //    TensorShape inputShape = new TensorShape(1, 3, targetTexture.height, targetTexture.width);
-    //    Tensor<float> input = new Tensor<float>(inputShape);
-    //    TextureConverter.ToTensor(targetTexture, input);
-    //    UnityEngine.Debug.Log(input.shape);
-    //    Tensor<float> inputCpu = input.ReadbackAndClone();
-
-    //    SaveTensorForPyTorch(inputCpu, "input.tensor");
-
-    //    normWorker.Schedule(input);
-    //    Tensor<float> normOutput = normWorker.PeekOutput() as Tensor<float>;
-    //    var cpuNormOutput = normOutput.ReadbackAndCloneAsync();
-
-    //    SaveTensorForPyTorch(normOutput, "normalized.tensor");
-
-    //    // Normalization Network :))))))))
-    //    Stopwatch watch = Stopwatch.StartNew();
-    //    worker.Schedule(normOutput);
-    //    Tensor<float> output = worker.PeekOutput("kpts") as Tensor<float>;
-    //    var cpuTensor = output.ReadbackAndClone();
-    //    watch.Stop();
-
-    //    SaveTensorForPyTorch(cpuTensor, "kpts.tensor");
-    //    Vector2[] kpts = parseKeyPoints(cpuTensor);
-
-    //    foreach (Vector2 kpt in kpts)
-    //    {
-    //        UnityEngine.Debug.Log($"[{kpt.x}, {kpt.y}]") ;
-    //    }
-
-    //    UnityEngine.Debug.Log($"Inference took {watch.ElapsedMilliseconds}, output shape: {cpuTensor.shape}");
-
-    //    speedText.text = watch.ElapsedMilliseconds.ToString() + " ms";
-
-    //    input.Dispose();
-    //    cpuTensor.Dispose();
-    //    return kpts;
-    //}
-
-    public void RunInferenceAsync(Texture targetTexture)
+    public Vector2[] RunInference(Texture targetTexture)
     {
         TensorShape inputShape = new TensorShape(1, 3, targetTexture.height, targetTexture.width);
         Tensor<float> input = new Tensor<float>(inputShape);
         TextureConverter.ToTensor(targetTexture, input);
+        UnityEngine.Debug.Log(input.shape);
+        Tensor<float> inputCpu = input.ReadbackAndClone();
 
-        var inputCpu = input.ReadbackAndClone();
         SaveTensorForPyTorch(inputCpu, "input.tensor");
 
-        // 1️⃣ Schedule normalization worker
         normWorker.Schedule(input);
+        Tensor<float> normOutput = normWorker.PeekOutput() as Tensor<float>;
+        var cpuNormOutput = normOutput.ReadbackAndClone();
 
-        // 2️⃣ Read normalization output asynchronously
-        var normOutput = normWorker.PeekOutput() as Tensor<float>;
-        var awaiter1 = normOutput.ReadbackAndCloneAsync().GetAwaiter();
-        awaiter1.OnCompleted(() =>
+        SaveTensorForPyTorch(cpuNormOutput, "normalized.tensor");
+
+        // Normalization Network :))))))))
+        Stopwatch watch = Stopwatch.StartNew();
+        worker.Schedule(cpuNormOutput);
+        Tensor<float> output = worker.PeekOutput("kpts") as Tensor<float>;
+        var cpuTensor = output.ReadbackAndClone();
+        watch.Stop();
+
+        SaveTensorForPyTorch(cpuTensor, "kpts.tensor");
+        Vector2[] kpts = parseKeyPoints(cpuTensor);
+
+        foreach (Vector2 kpt in kpts)
         {
-            var cpuNormOutput = awaiter1.GetResult();
-            SaveTensorForPyTorch(cpuNormOutput, "normalized.tensor");
+            UnityEngine.Debug.Log($"[{kpt.x}, {kpt.y}]");
+        }
 
-            UnityEngine.Debug.Log("Normalization finished.");
-            // 3️⃣ Schedule main worker AFTER normalization is ready
-            worker.Schedule(normOutput);
+        UnityEngine.Debug.Log($"Inference took {watch.ElapsedMilliseconds}, output shape: {cpuTensor.shape}");
 
-            // 4️⃣ Read main output asynchronously
-            //var output = worker.PeekOutput("kpts") as Tensor<float>;
-            //var awaiter2 = output.ReadbackAndCloneAsync().GetAwaiter();
-            //awaiter2.OnCompleted(() =>
-            //{
-            //    var cpuOutput = awaiter2.GetResult();
-            //    SaveTensorForPyTorch(cpuOutput, "kpts.tensor");
+        speedText.text = watch.ElapsedMilliseconds.ToString() + " ms";
 
-            //    Vector2[] kpts = parseKeyPoints(cpuOutput);
-            //    foreach (Vector2 kpt in kpts)
-            //        UnityEngine.Debug.Log($"[{kpt.x}, {kpt.y}]");
-
-            //    UnityEngine.Debug.Log($"Inference complete, output shape: {cpuOutput.shape}");
-
-            //    // Clean up
-            //    input.Dispose();
-            //    cpuOutput.Dispose();
-            //    normOutput.Dispose();
-            //});
-
-            var output = worker.PeekOutput("heatmaps") as Tensor<float>;
-            var awaiter2 = output.ReadbackAndCloneAsync().GetAwaiter();
-            awaiter2.OnCompleted(() =>
-            {
-                var cpuOutput = awaiter2.GetResult();
-                SaveTensorForPyTorch(cpuOutput, "heatmaps.tensor");
-                UnityEngine.Debug.Log($"Inference complete, output shape: {cpuOutput.shape}");
-
-                // Clean up
-                input.Dispose();
-                cpuOutput.Dispose();
-                normOutput.Dispose();
-            });
-        });
+        input.Dispose();
+        cpuTensor.Dispose();
+        return kpts;
     }
+
+    //public void RunInferenceAsync(Texture targetTexture)
+    //{
+    //    TensorShape inputShape = new TensorShape(1, 3, targetTexture.height, targetTexture.width);
+    //    Tensor<float> input = new Tensor<float>(inputShape);
+    //    TextureConverter.ToTensor(targetTexture, input);
+
+    //    var inputCpu = input.ReadbackAndClone();
+    //    SaveTensorForPyTorch(inputCpu, "input.tensor");
+
+    //    // 1️⃣ Schedule normalization worker
+    //    normWorker.Schedule(input);
+
+    //    // 2️⃣ Read normalization output asynchronously
+    //    var normOutput = normWorker.PeekOutput() as Tensor<float>;
+    //    var awaiter1 = normOutput.ReadbackAndCloneAsync().GetAwaiter();
+    //    awaiter1.OnCompleted(() =>
+    //    {
+    //        var cpuNormOutput = awaiter1.GetResult();
+    //        SaveTensorForPyTorch(cpuNormOutput, "normalized.tensor");
+
+    //        UnityEngine.Debug.Log("Normalization finished.");
+    //        // 3️⃣ Schedule main worker AFTER normalization is ready
+    //        worker.Schedule(normOutput);
+
+    //        // 4️⃣ Read main output asynchronously
+    //        //var output = worker.PeekOutput("kpts") as Tensor<float>;
+    //        //var awaiter2 = output.ReadbackAndCloneAsync().GetAwaiter();
+    //        //awaiter2.OnCompleted(() =>
+    //        //{
+    //        //    var cpuOutput = awaiter2.GetResult();
+    //        //    SaveTensorForPyTorch(cpuOutput, "kpts.tensor");
+
+    //        //    Vector2[] kpts = parseKeyPoints(cpuOutput);
+    //        //    foreach (Vector2 kpt in kpts)
+    //        //        UnityEngine.Debug.Log($"[{kpt.x}, {kpt.y}]");
+
+    //        //    UnityEngine.Debug.Log($"Inference complete, output shape: {cpuOutput.shape}");
+
+    //        //    // Clean up
+    //        //    input.Dispose();
+    //        //    cpuOutput.Dispose();
+    //        //    normOutput.Dispose();
+    //        //});
+
+    //        var output = worker.PeekOutput("heatmaps") as Tensor<float>;
+    //        var awaiter2 = output.ReadbackAndCloneAsync().GetAwaiter();
+    //        awaiter2.OnCompleted(() =>
+    //        {
+    //            var cpuOutput = awaiter2.GetResult();
+    //            SaveTensorForPyTorch(cpuOutput, "heatmaps.tensor");
+    //            UnityEngine.Debug.Log($"Inference complete, output shape: {cpuOutput.shape}");
+
+    //            // Clean up
+    //            input.Dispose();
+    //            cpuOutput.Dispose();
+    //            normOutput.Dispose();
+    //        });
+    //    });
+    //}
 
     public Vector2[] parseKeyPoints(Tensor<float> tensor)
     {

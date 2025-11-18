@@ -13,7 +13,6 @@ public class CVPlaneFinder: AbstractPlaneFinder
             if (raycastManager.Raycast(ray, out var hit))
             {
                 CapturePoint(hit.point);
-                Debug.Log("Point registered!");
             }
         }
     }

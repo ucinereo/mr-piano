@@ -4,37 +4,32 @@ using UnityEngine;
 
 public class CameraViewer : MonoBehaviour
 {
+    #region Serialized
+    // Camera access object which enables fetching the image feed etc.
     [SerializeField] private PassthroughCameraAccess cameraAccess;
+
+    // QuadRenderer which is used to render the image with the found keypoints for debugging.
     [SerializeField] private Renderer quadRenderer;
+
+    // ML Model manager for inference
     [SerializeField] private ModelManager modelManager;
     [SerializeField] private CVPlaneFinder cvPlaneFinder;
+    #endregion
 
+    // Texture which stores the camera feed
     private Texture2D picture;
 
     private void Start()
     {
+        // Fixes weird bug that even though it shoudl be contained in the 
         UnityEngine.Android.Permission.RequestUserPermission("horizonos.permission.HEADSET_CAMERA");
     }
 
     // Update is called once per frame
     void Update()
     {
-        //if (cameraAccess.enabled)
-        //{
-        //    Texture texture = cameraAccess.GetTexture();
-        //    quadRenderer.material.mainTexture = texture;
-        //}
-
-
         if (cameraAccess.IsPlaying)
         {
-            PassthroughCameraAccess.CameraIntrinsics intrinsics = cameraAccess.Intrinsics;
-            Pose pose = cameraAccess.GetCameraPose();
-            // Ray ray = cameraAccess.ViewportPointToRay(normalizedViewportPoint);
-
-            // Newly added properties:
-            Vector2Int resolution = cameraAccess.CurrentResolution;
-            DateTime timestamp = cameraAccess.Timestamp;
             if (OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.LTouch))
             {
                 TakePicture();
@@ -66,9 +61,10 @@ public class CameraViewer : MonoBehaviour
         for (int i = 0; i < kpts.Length; i++)
         {
             Vector2 kpt = kpts[i];
+            int y = picture.height - Mathf.FloorToInt(kpt.y);
             var viewportPoint = new Vector2(
                 (float)kpt.x / cameraAccess.CurrentResolution.x,
-                (float)kpt.y / cameraAccess.CurrentResolution.y
+                (float)y / cameraAccess.CurrentResolution.y
             );
             var ray = cameraAccess.ViewportPointToRay(viewportPoint);
             rays[i] = ray;
@@ -82,9 +78,14 @@ public class CameraViewer : MonoBehaviour
         quadRenderer.material.mainTexture = picture;
     }
 
+    /// <summary>
+    /// Draws keypoitns on top of the picture.
+    /// </summary>
+    /// <param name="picture">The picture texture.</param>
+    /// <param name="kpts">Array of keypoints in pixel space.</param>
     void drawQuad(Texture2D picture, Vector2[] kpts)
     {
-        int width = 3;
+        int width = 3; // width of the quad in image space.
         foreach (Vector2 kpt in kpts)
         {
             int x = Mathf.FloorToInt(kpt.x);

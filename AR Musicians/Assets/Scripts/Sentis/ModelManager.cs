@@ -13,7 +13,6 @@ public class ModelManager : MonoBehaviour
 {
 
     [SerializeField] private ModelAsset modelAsset;
-    //[SerializeField] private WebCamTextureManager webcamTextureManager;
     [SerializeField] private TMP_Text speedText;
 
     private Model runtimeModel;
@@ -22,8 +21,6 @@ public class ModelManager : MonoBehaviour
     private Model normModel;
     private Worker normWorker;
 
-    // State variables
-    private bool isModelLoaded = false;
 
     [Header("[Editor Only] Convert to Sentis")]
     public ModelAsset OnnxModel;
@@ -32,15 +29,6 @@ public class ModelManager : MonoBehaviour
     void Start()
     {
         InitializeModel();
-        //string outputDir = Path.Combine(Application.streamingAssetsPath, "Models");
-        //if (!Directory.Exists(outputDir))
-        //{
-        //    Directory.CreateDirectory(outputDir);
-        //}
-
-        //string outputPath = Path.Combine(outputDir, "Model.nn");
-        //ModelWriter.Save(outputPath, runtimeModel);
-        //UnityEngine.Debug.Log("Model Serialized!");
     }
 
     // Update is called once per frame
@@ -56,15 +44,18 @@ public class ModelManager : MonoBehaviour
         worker = new Worker(runtimeModel, BackendType.GPUCompute);
         UnityEngine.Debug.Log("Sentis Model Initialized!");
         WarmUpSentis();
-        isModelLoaded = true;
     }
 
+    /// <summary>
+    /// Runs inference in a blocking and synchronous way.
+    /// </summary>
+    /// <param name="targetTexture">Input texture</param>
+    /// <returns>Array of keypoints (Vector2)</returns>
     public Vector2[] RunInference(Texture targetTexture)
     {
         TensorShape inputShape = new TensorShape(1, 3, targetTexture.height, targetTexture.width);
         Tensor<float> input = new Tensor<float>(inputShape);
         TextureConverter.ToTensor(targetTexture, input);
-        UnityEngine.Debug.Log(input.shape);
         Tensor<float> inputCpu = input.ReadbackAndClone();
 
         SaveTensorForPyTorch(inputCpu, "input.tensor");
@@ -172,6 +163,7 @@ public class ModelManager : MonoBehaviour
 
     public void AddNormalizationHead()
     {
+        // @TODO: Generalize for arbitrary input sizes.
         TensorShape inputShape = new TensorShape(1, 3, 240, 320);
         FunctionalGraph graph = new FunctionalGraph();
         FunctionalTensor inputNode = graph.AddInput<float>(inputShape);
@@ -186,8 +178,8 @@ public class ModelManager : MonoBehaviour
 
     void WarmUpSentis()
     {
+        // @TODO: Generalize for arbitrary input sizes.
         TensorShape shape = new TensorShape(1, 3, 240, 320);
-        //k B, 3, 224, 304
         using var tensor = new Tensor<float>(shape, clearOnInit: false);
         worker.Schedule(tensor);
         Tensor<float> output = worker.PeekOutput() as Tensor<float>;
